@@ -17,19 +17,20 @@ RUN pip install --upgrade pip setuptools wheel packaging
 RUN TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0" \
     pip install sageattention==1.0.6 --no-build-isolation
 
-# 4. CLONE AND INSTALL TURBODIFFUSION (key change: install as package)
+# 4. CLONE TURBODIFFUSION (keeping your original approach)
 RUN git clone https://github.com/thu-ml/TurboDiffusion.git /TurboDiffusion_Lib && \
     cd /TurboDiffusion_Lib && \
-    git submodule update --init --recursive && \
-    pip install -e . --no-build-isolation
+    git submodule update --init --recursive
 
 # 5. SETUP YOUR RUNPOD FILES
 WORKDIR /app
 COPY . .
 
-# 6. Install dependencies from your repo
+# 6. Install dependencies from both your repo and the library
+RUN if [ -f /TurboDiffusion_Lib/requirements.txt ]; then \
+    pip install --no-cache-dir -r /TurboDiffusion_Lib/requirements.txt; fi
 RUN if [ -f requirements.txt ]; then \
-    sed -i '/SpargeAttn/d; /sageattn/d; /sageattention/d; /turbodiffusion/d' requirements.txt && \
+    sed -i '/SpargeAttn/d; /sageattn/d; /sageattention/d' requirements.txt && \
     pip install --no-cache-dir -r requirements.txt; fi
 
 # 7. EXPOSE THE LIBRARY TO PYTHON
