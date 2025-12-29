@@ -12,9 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 3. Build tools & SageAttention
 RUN pip install --upgrade pip setuptools wheel packaging
-
-# Install SageAttention with architecture-specific optimizations
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0" \
+# Added einops and moviepy here to fix runtime errors
+RUN pip install einops moviepy
+RUN TORCH_CUDA_ARCH_LIST="9.0" \
     pip install sageattention==1.0.6 --no-build-isolation
 
 # 4. CLONE TURBODIFFUSION (keeping your original approach)
@@ -26,12 +26,12 @@ RUN git clone https://github.com/thu-ml/TurboDiffusion.git /TurboDiffusion_Lib &
 WORKDIR /app
 COPY . .
 
-# 6. Install dependencies from both your repo and the library
+# 6. Install dependencies
 RUN if [ -f /TurboDiffusion_Lib/requirements.txt ]; then \
     pip install --no-cache-dir -r /TurboDiffusion_Lib/requirements.txt; fi
-RUN if [ -f requirements.txt ]; then \
-    sed -i '/SpargeAttn/d; /sageattn/d; /sageattention/d' requirements.txt && \
-    pip install --no-cache-dir -r requirements.txt; fi
+
+# Ensure einops is present even if not in requirements
+RUN pip install einops
 
 # 7. EXPOSE THE LIBRARY TO PYTHON
 ENV PYTHONPATH="/TurboDiffusion_Lib:/app:${PYTHONPATH}"
