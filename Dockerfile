@@ -1,4 +1,4 @@
-# Upgrading to 12.4 to satisfy the Compute Capability 8.9 requirement
+# We keep CUDA 12.4 for best performance on H100/A100/4090
 FROM pytorch/pytorch:2.4.0-cuda12.4-cudnn9-devel
 
 USER root
@@ -13,24 +13,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 2. Build tools
 RUN pip install --upgrade pip setuptools wheel packaging
 
-# 3. Install SpargeAttn
-# We keep the 'pretend version' just in case the Git error tries to return
-RUN git clone https://github.com/thu-ml/SpargeAttn.git /SpargeAttn && \
-    cd /SpargeAttn && \
-    SETUPTOOLS_SCM_PRETEND_VERSION=0.0.1 \
-    MAX_JOBS=4 \
-    TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0" \
-    pip install . --no-build-isolation
+# 3. Install SageAttn 
+# Most research forks of TurboDiffusion now use this. 
+# We install it directly via pip which handles the kernels better.
+RUN pip install sageattn==1.0.1 --no-build-isolation
 
 # 4. Setup TurboDiffusion
 WORKDIR /TurboDiffusion
 COPY . .
 
-# Clean requirements.txt
+# Clean requirements.txt of the old problematic package
 RUN if [ -f requirements.txt ]; then \
     sed -i '/SpargeAttn/d' requirements.txt; \
     fi
 
+# Install remaining requirements
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install -e . --no-build-isolation
 
