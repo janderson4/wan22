@@ -1,10 +1,21 @@
-runpod
-torch>=2.7.0
-torchvision
-transformers
-accelerate
-sentencepiece
-opencv-python
+# Core Dependencies
+einops>=0.8.0
+numpy>=1.26.0
+nvidia-ml-py>=12.535.133
+packaging
+pillow
 requests
 tqdm
-ninja
+
+# Video Processing
+moviepy>=1.0.3
+opencv-python>=4.10.0
+
+# Diffusion & Modeling
+diffusers>=0.31.0
+transformers>=4.45.0
+accelerate>=1.0.0
+sentencepiece
+
+# Optimization
+triton>=3.0.0
