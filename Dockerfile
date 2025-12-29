@@ -1,16 +1,14 @@
-# Using a slightly different base to ensure package manager stability
+# Use the official PyTorch development image
 FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-devel
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
-
-# 1. Manually set PATH to include standard bin directories
+# Force standard paths
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH}"
 
-# 2. Separate APT updates and installs for better reliability
-RUN apt-get update -y && \
-    apt-get install -y --no-install-recommends \
+# 1. Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     wget \
     ffmpeg \
@@ -18,36 +16,35 @@ RUN apt-get update -y && \
     libxext6 \
     libgl1-mesa-glx \
     build-essential \
-    ninja-build && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    ninja-build \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 3. VERIFICATION STEP (This will force the build to fail early if git is missing)
-RUN which git && git --version
-
-WORKDIR /
-
-# 4. CLONE TURBODIFFUSION
-RUN git clone https://github.com/thu-ml/TurboDiffusion.git
-WORKDIR /TurboDiffusion
-
-# 5. INSTALL PYTHON DEPENDENCIES
+# 2. Upgrade core python build tools
 RUN pip install --upgrade pip setuptools wheel
 
+# 3. Setup Working Directory
+WORKDIR /TurboDiffusion
+
+# 4. Clone TurboDiffusion contents into the current directory
+# Note: Since RunPod pulls your repo, we only need to clone SpargeAttn manually
+RUN git clone https://github.com/thu-ml/SpargeAttn.git /SpargeAttn
+
+# 5. Install SpargeAttn from the local folder
+# We do this BEFORE the main requirements to ensure build-time deps are met
+RUN cd /SpargeAttn && pip install . --no-build-isolation
+
+# 6. Now install the main requirements
+# Make sure your requirements.txt does NOT contain the SpargeAttn git link
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. INSTALL SPARGEATTN 
-# We use a safer syntax here
-RUN git config --global --add safe.directory /TurboDiffusion && \
-    pip install git+https://github.com/thu-ml/SpargeAttn.git --no-build-isolation
-
-# 7. INSTALL TURBODIFFUSION
+# 7. Install the current TurboDiffusion package
+# Assuming your Dockerfile is in the root of your repo
+COPY . .
 RUN pip install -e . --no-build-isolation
 
-# 8. FETCH MODELS & HANDLER
-COPY builder/fetch_models.py /TurboDiffusion/builder/
-RUN python builder/fetch_models.py
-COPY rp_handler.py /TurboDiffusion/
+# 8. Fetch Models
+# This stays the same
+RUN python3 builder/fetch_models.py
 
-CMD ["python", "-u", "rp_handler.py"]
+CMD ["python3", "-u", "rp_handler.py"]
