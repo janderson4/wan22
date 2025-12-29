@@ -1,52 +1,43 @@
-# We're sticking with the devel image to ensure you have the CUDA headers
 FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-devel
 
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 
-# 1. FIX APT MIRRORS AND UPDATE
-# We use a retry logic for the update in case of network blips
-RUN apt-get clean && apt-get update --fix-missing
+# 1. Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git wget ffmpeg libsm6 libxext6 libgl1 build-essential ninja-build && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# 2. INSTALL SYSTEM TOOLS INDIVIDUALLY
-# This ensures if one fails, we know exactly which one.
-# I have swapped 'libgl1-mesa-glx' for 'libgl1' which is more modern.
-RUN apt-get install -y --no-install-recommends git && \
-    apt-get install -y --no-install-recommends wget && \
-    apt-get install -y --no-install-recommends ffmpeg && \
-    apt-get install -y --no-install-recommends libsm6 libxext6 && \
-    apt-get install -y --no-install-recommends libgl1 && \
-    apt-get install -y --no-install-recommends build-essential ninja-build
-
-# 3. VERIFY GIT AND SET PATH
-RUN which git && git --version
-ENV PATH="/usr/bin:/usr/local/bin:${PATH}"
+# 2. Pre-install Python build-essential tools (from your Option 1)
+# Including 'packaging' and 'ninja' is crucial for CUDA packages
+RUN pip install --upgrade pip setuptools wheel setuptools_scm packaging ninja
 
 WORKDIR /
 
-# 4. CLONE SPARGEATTN MANUALLY
+# 3. Clone SpargeAttn
 RUN git clone https://github.com/thu-ml/SpargeAttn.git /SpargeAttn
 
-# 5. PRE-INSTALL BUILD REQUIREMENTS
-RUN pip install --upgrade pip setuptools wheel setuptools_scm
-
-# 6. INSTALL SPARGEATTN
-# Adding MAX_JOBS=4 to prevent OOM errors during compilation on large machines
+# 4. INSTALL SPARGEATTN (Combining all strategies)
+# - Verbose (-v) to see exactly what fails
+# - Pretend Version to skip the Git check
+# - No Build Isolation to use our pre-installed ninja/packaging
 RUN cd /SpargeAttn && \
-    MAX_JOBS=4 pip install . --no-build-isolation
+    SETUPTOOLS_SCM_PRETEND_VERSION=0.0.1 \
+    MAX_JOBS=4 \
+    python3 -m pip install -v . --no-build-isolation
 
-# 7. SETUP TURBODIFFUSION
+# 5. SETUP TURBODIFFUSION
 WORKDIR /TurboDiffusion
 COPY . .
 
-# Clean requirements.txt of the SpargeAttn link to avoid loops
+# Remove SpargeAttn from requirements.txt if present
 RUN if [ -f requirements.txt ]; then sed -i '/SpargeAttn/d' requirements.txt; fi
 
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install -e . --no-build-isolation
 
-# 8. FETCH MODELS
+# 6. FETCH MODELS
 RUN python3 builder/fetch_models.py
 
 CMD ["python3", "-u", "rp_handler.py"]
