@@ -1,0 +1,10 @@
+runpod
+torch>=2.7.0
+torchvision
+transformers
+accelerate
+sentencepiece
+opencv-python
+requests
+tqdm
+ninja
