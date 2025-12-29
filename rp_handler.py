@@ -23,15 +23,15 @@ def download_image(url):
 def handler(job):
     job_input = job['input']
     
-    # 1. Extract inputs with defaults
+    # Extract inputs
     prompt = job_input.get('prompt')
     image_url = job_input.get('image_url')
     steps = job_input.get('steps', 4)
     seed = job_input.get('seed', 0)
     num_frames = job_input.get('num_frames', 81)
-    fps = job_input.get('fps', 24)
-    enable_profiling = job_input.get('enable_profiling', False)
+    # The official script uses frame count; FPS is usually handled during saving/encoding
     resolution = job_input.get('resolution', '720p')
+    enable_profiling = job_input.get('enable_profiling', False)
     
     if not prompt or not image_url:
         return {"error": "Missing prompt or image_url"}
@@ -62,12 +62,13 @@ def handler(job):
     print(f"Generating video...")
     gen_start = time.time()
     
-    # Build command to run the official inference script
+    # 3. Generate using unquantized settings for H100
     cmd = [
         "python3", "/TurboDiffusion_Lib/turbodiffusion/inference/wan2.2_i2v_infer.py",
         "--model", "Wan2.2-A14B",
-        "--low_noise_model_path", "/app/checkpoints/TurboWan2.2-I2V-A14B-low-720P-quant.pth",
-        "--high_noise_model_path", "/app/checkpoints/TurboWan2.2-I2V-A14B-high-720P-quant.pth",
+        # Pointing to UNQUANTIZED weights
+        "--low_noise_model_path", "/app/checkpoints/TurboWan2.2-I2V-A14B-low-720P.pth",
+        "--high_noise_model_path", "/app/checkpoints/TurboWan2.2-I2V-A14B-high-720P.pth",
         "--vae_path", "/app/checkpoints/Wan2.1_VAE.pth",
         "--text_encoder_path", "/app/checkpoints/models_t5_umt5-xxl-enc-bf16.pth",
         "--resolution", resolution,
@@ -78,8 +79,9 @@ def handler(job):
         "--num_frames", str(num_frames),
         "--seed", str(seed),
         "--save_path", output_filename,
-        "--quant_linear",
-        "--attention_type", "sageattention",
+        # IMPORTANT: Removed --quant_linear for H100/unquantized
+        "--attention_type", "sla", # Using SLA as requested
+        "--sla_topk", "0.15", # Authors recommend 0.15 for better quality
         "--ode"
     ]
     
